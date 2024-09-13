@@ -4,12 +4,14 @@ use crate::config::Config;
 use crate::fl;
 use cosmic::app::{Command, Core};
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
-use cosmic::iced::alignment::{Horizontal, Vertical};
-use cosmic::iced::{Alignment, Length, Subscription};
+use cosmic::iced::{Alignment, Subscription};
 use cosmic::widget::{self, icon, menu, nav_bar};
-use cosmic::{cosmic_theme, theme, Application, ApplicationExt, Apply, Element};
+use cosmic::{cosmic_theme, theme, Application, ApplicationExt, Element};
 use futures_util::SinkExt;
 use std::collections::HashMap;
+
+pub mod models;
+pub mod page;
 
 const REPOSITORY: &str = "https://github.com/edfloreshz/blueprint";
 const APP_ICON: &[u8] = include_bytes!("../res/icons/hicolor/scalable/apps/icon.svg");
@@ -36,6 +38,10 @@ pub enum Message {
     SubscriptionChannel,
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
+    Shells(page::Message),
+    Languages(page::Message),
+    Editors(page::Message),
+    Libraries(page::Message),
 }
 
 /// Create a COSMIC application from the app model
@@ -66,20 +72,25 @@ impl Application for AppModel {
         let mut nav = nav_bar::Model::default();
 
         nav.insert()
-            .text(fl!("page-id", num = 1))
-            .data::<Page>(Page::Page1)
-            .icon(icon::from_name("applications-science-symbolic"))
+            .text(fl!("shells"))
+            .data::<Page>(Page::Shells)
+            .icon(icon::from_name("utilities-terminal-symbolic"))
             .activate();
 
         nav.insert()
-            .text(fl!("page-id", num = 2))
-            .data::<Page>(Page::Page2)
-            .icon(icon::from_name("applications-system-symbolic"));
+            .text(fl!("languages"))
+            .data::<Page>(Page::Languages)
+            .icon(icon::from_name("preferences-region-and-language-symbolic"));
 
         nav.insert()
-            .text(fl!("page-id", num = 3))
-            .data::<Page>(Page::Page3)
-            .icon(icon::from_name("applications-games-symbolic"));
+            .text(fl!("editors"))
+            .data::<Page>(Page::Editors)
+            .icon(icon::from_name("accessories-text-editor-symbolic"));
+
+        nav.insert()
+            .text(fl!("libraries"))
+            .data::<Page>(Page::Libraries)
+            .icon(icon::from_name("address-book-new-symbolic"));
 
         // Construct the app model with the runtime's core.
         let mut app = AppModel {
@@ -142,13 +153,15 @@ impl Application for AppModel {
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<Self::Message> {
-        widget::text::title1(fl!("welcome"))
-            .apply(widget::container)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(Horizontal::Center)
-            .align_y(Vertical::Center)
-            .into()
+        match self.nav.active_data::<Page>() {
+            Some(page) => match page {
+                Page::Shells => page::view(fl!("shells")).map(Message::Shells),
+                Page::Languages => page::view(fl!("languages")).map(Message::Languages),
+                Page::Editors => page::view(fl!("editors")).map(Message::Editors),
+                Page::Libraries => page::view(fl!("libraries")).map(Message::Libraries),
+            },
+            None => widget::column().into(),
+        }
     }
 
     /// Register subscriptions for this application.
@@ -192,11 +205,9 @@ impl Application for AppModel {
             Message::OpenRepositoryUrl => {
                 _ = open::that_detached(REPOSITORY);
             }
-
             Message::SubscriptionChannel => {
                 // For example purposes only.
             }
-
             Message::ToggleContextPage(context_page) => {
                 if self.context_page == context_page {
                     // Close the context drawer if the toggled context page is the same.
@@ -210,9 +221,20 @@ impl Application for AppModel {
                 // Set the title of the context drawer.
                 self.set_context_title(context_page.title());
             }
-
             Message::UpdateConfig(config) => {
                 self.config = config;
+            }
+            Message::Shells(_) => {
+                // Handle the shells page message.
+            }
+            Message::Languages(_) => {
+                // Handle the languages page message.
+            }
+            Message::Editors(_) => {
+                // Handle the editors page message.
+            }
+            Message::Libraries(_) => {
+                // Handle the libraries page message.
             }
         }
         Command::none()
@@ -264,9 +286,10 @@ impl AppModel {
 
 /// The page to display in the application.
 pub enum Page {
-    Page1,
-    Page2,
-    Page3,
+    Shells,
+    Languages,
+    Editors,
+    Libraries,
 }
 
 /// The context page to display in the context drawer.

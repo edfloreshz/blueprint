@@ -701,6 +701,7 @@ dependencies = [
  "once_cell",
  "open",
  "rust-embed",
+ "serde",
  "tokio",
 ]
 
