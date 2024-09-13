@@ -1,10 +1,10 @@
 [Desktop Entry]
-Name={{APP_NAME}}
-Exec={{APP_BINARY}} %F
+Name=Blueprint
+Exec=blueprint %F
 Terminal=false
 Type=Application
 StartupNotify=true
-Icon={{APP_ID}}
+Icon=dev.edfloreshz.Blueprint
 Categories=COSMIC;
 Keywords=
 MimeType=

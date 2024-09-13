@@ -1,4 +1,4 @@
-app-title = COSMIC App Template
+app-title = Blueprint
 about = About
 view = View
 welcome = Welcome to COSMIC! ✨

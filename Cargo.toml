@@ -1,7 +1,9 @@
 [package]
-name = "cosmic-app-template"
+name = "blueprint"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/edfloreshz/blueprint"
+license-file = "LICENSE"
 
 [dependencies]
 futures-util = "0.3.30"

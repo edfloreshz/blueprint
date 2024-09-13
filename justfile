@@ -1,5 +1,5 @@
-name := 'cosmic-app-template'
-appid := 'com.example.CosmicAppTemplate'
+name := 'blueprint'
+appid := 'dev.edfloreshz.Blueprint'
 
 rootdir := ''
 prefix := '/usr'

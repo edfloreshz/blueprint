@@ -1,35 +1,27 @@
-# COSMIC Application Template
+<div align="center">
+  <img src="res/icons/hicolor/scalable/apps/icon.svg" width="200">
+  <h1>Blueprint</h1>
+  <h4>An out of the box development environment designer</h4>
+  <a href="https://github.com/sponsors/edfloreshz">
+    <img src="https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#white"/>
+  </a>
+</div>
 
-A template for developing applications for the COSMIC™ desktop environment.
+## Description
 
-## Getting Started
+The Blueprint project focuses on improving the initial experience developers have when starting to work with a new codebase or project. We understand that the initial setup and configuration can often be time-consuming and frustrating, leading to delays in productivity and a steep learning curve for newcomers. Our goal is to streamline this process and provide developers with a seamless out-of-the-box experience.
 
-Log into your GitHub account and click the "Use this template" button above. This will create a new repository in your account. Choose a name for this repository, and then clone it locally onto your system. Make the following changes after cloning it:
+## Features
 
-- In `Cargo.toml`, change the `name` and set your `license` and `repository`.
-- Create a `LICENSE` file containing your chosen software license.
-- Rename the `cosmic_app_template` portion of `i18n/en/cosmic_app_template.ftl` to the new crate `name`.
-- In `justfile`, change the `name` and `appid` variables with your own.
-- In `src/app.rs`, change the `APP_ID` value in the `Application` implementation of the `AppModel`.
-- In `src/app.rs`, change the `REPOSITORY` const with the URL to your application's git repository.
-- In `res/app.desktop`, change the `Name=`, `Exec=`, and `Icon=` fields
-- Set your license within the SPDX tags at the top of each source file
+- **Automated setup**: We provide an easy to use interface to create, edit and distribute custom setups with other developers, reducing the time and effort required to setup a new machine.
+- **Default configuration**: We have carefully curated default configurations for common tools, languages, and libraries used in the project. This ensures that developers can quickly get started without spending excessive time on configuration tweaks.
 
-A [justfile](./justfile) is included by default with common recipes used by other COSMIC projects. Install from [casey/just][just]
+## License
 
-- `just` builds the application with the default `just build-release` recipe
-- `just run` builds and runs the application
-- `just install` installs the project into the system
-- `just vendor` creates a vendored tarball
-- `just build-vendored` compiles with vendored dependencies from that tarball
-- `just check` runs clippy on the project to check for linter warnings
-- `just check-json` can be used by IDEs that support LSP
+This project is licensed under [GPL-3.0](LICENSE).
 
-## Documentation
+## Contact
 
-Refer to the [libcosmic API documentation][api-docs] and [book][book] for help with building applications with [libcosmic][libcosmic].
+For any questions, suggestions, or feedback, please feel free to contact the project maintainers:
 
-[api-docs]: https://pop-os.github.io/libcosmic/cosmic/
-[book]: https://pop-os.github.io/libcosmic-book/
-[libcosmic]: https://github.com/pop-os/libcosmic/
-[just]: https://github.com/casey/just
+- Eduardo Flores <[edfloreshz@proton.me](mailto:edfloreshz@proton.me)>
