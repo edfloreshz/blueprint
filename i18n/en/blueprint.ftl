@@ -1,6 +1,4 @@
 app-title = Blueprint
-about = About
-view = View
 
 # Pages
 shells = Shells
@@ -11,3 +9,9 @@ editors = Editors
 editors-desc = Configure your code editors.
 libraries = Libraries
 libraries-desc = Configure your system libraries.
+
+# Menu
+view = View
+about = About
+file = File
+new-package = New package

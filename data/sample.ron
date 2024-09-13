@@ -1,0 +1,9 @@
+[
+    (
+        name: "Fish",
+        source: Apt("fish"),
+        config: [],
+        page: Shells,
+        enabled: true,
+    ),
+]

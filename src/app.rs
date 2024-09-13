@@ -8,6 +8,9 @@ use cosmic::iced::{Alignment, Subscription};
 use cosmic::widget::{self, icon, menu, nav_bar};
 use cosmic::{cosmic_theme, theme, Application, ApplicationExt, Element};
 use futures_util::SinkExt;
+use models::package::{Package, Source};
+use page::PageView;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod models;
@@ -27,8 +30,13 @@ pub struct AppModel {
     nav: nav_bar::Model,
     /// Key bindings for the application's menu bar.
     key_binds: HashMap<menu::KeyBind, MenuAction>,
+    config_handler: Option<cosmic_config::Config>,
     // Configuration data that persists between application runs.
     config: Config,
+    shells: page::PageView,
+    editors: page::PageView,
+    languages: page::PageView,
+    libraries: page::PageView,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -38,10 +46,12 @@ pub enum Message {
     SubscriptionChannel,
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
+    NewPackage,
     Shells(page::Message),
     Languages(page::Message),
     Editors(page::Message),
     Libraries(page::Message),
+    ReloadPackages,
 }
 
 /// Create a COSMIC application from the app model
@@ -92,6 +102,47 @@ impl Application for AppModel {
             .data::<Page>(Page::Libraries)
             .icon(icon::from_name("address-book-new-symbolic"));
 
+        let config = cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
+            .map(|context| match Config::get_entry(&context) {
+                Ok(config) => config,
+                Err((_errors, config)) => {
+                    // for why in errors {
+                    //     tracing::error!(%why, "error loading app config");
+                    // }
+
+                    config
+                }
+            })
+            .unwrap_or_default();
+
+        let shells = config
+            .packages
+            .iter()
+            .cloned()
+            .filter(|p| p.page == Page::Shells)
+            .collect();
+
+        let languages = config
+            .packages
+            .iter()
+            .cloned()
+            .filter(|p| p.page == Page::Languages)
+            .collect();
+
+        let editors = config
+            .packages
+            .iter()
+            .cloned()
+            .filter(|p| p.page == Page::Editors)
+            .collect();
+
+        let libraries = config
+            .packages
+            .iter()
+            .cloned()
+            .filter(|p| p.page == Page::Libraries)
+            .collect();
+
         // Construct the app model with the runtime's core.
         let mut app = AppModel {
             core,
@@ -99,18 +150,12 @@ impl Application for AppModel {
             nav,
             key_binds: HashMap::new(),
             // Optional configuration file for an application.
-            config: cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
-                .map(|context| match Config::get_entry(&context) {
-                    Ok(config) => config,
-                    Err((_errors, config)) => {
-                        // for why in errors {
-                        //     tracing::error!(%why, "error loading app config");
-                        // }
-
-                        config
-                    }
-                })
-                .unwrap_or_default(),
+            config_handler: cosmic_config::Config::new(Self::APP_ID, Config::VERSION).ok(),
+            config: config.clone(),
+            shells: PageView::new(fl!("shells"), shells),
+            languages: PageView::new(fl!("languages"), languages),
+            editors: PageView::new(fl!("editors"), editors),
+            libraries: PageView::new(fl!("libraries"), libraries),
         };
 
         // Create a startup command that sets the window title.
@@ -121,13 +166,25 @@ impl Application for AppModel {
 
     /// Elements to pack at the start of the header bar.
     fn header_start(&self) -> Vec<Element<Self::Message>> {
-        let menu_bar = menu::bar(vec![menu::Tree::with_children(
-            menu::root(fl!("view")),
-            menu::items(
-                &self.key_binds,
-                vec![menu::Item::Button(fl!("about"), MenuAction::About)],
+        let menu_bar = menu::bar(vec![
+            menu::Tree::with_children(
+                menu::root(fl!("file")),
+                menu::items(
+                    &self.key_binds,
+                    vec![menu::Item::Button(
+                        fl!("new-package"),
+                        MenuAction::NewPackage,
+                    )],
+                ),
             ),
-        )]);
+            menu::Tree::with_children(
+                menu::root(fl!("view")),
+                menu::items(
+                    &self.key_binds,
+                    vec![menu::Item::Button(fl!("about"), MenuAction::About)],
+                ),
+            ),
+        ]);
 
         vec![menu_bar.into()]
     }
@@ -155,10 +212,10 @@ impl Application for AppModel {
     fn view(&self) -> Element<Self::Message> {
         match self.nav.active_data::<Page>() {
             Some(page) => match page {
-                Page::Shells => page::view(fl!("shells")).map(Message::Shells),
-                Page::Languages => page::view(fl!("languages")).map(Message::Languages),
-                Page::Editors => page::view(fl!("editors")).map(Message::Editors),
-                Page::Libraries => page::view(fl!("libraries")).map(Message::Libraries),
+                Page::Shells => self.shells.view().map(Message::Shells),
+                Page::Languages => self.languages.view().map(Message::Languages),
+                Page::Editors => self.editors.view().map(Message::Editors),
+                Page::Libraries => self.libraries.view().map(Message::Libraries),
             },
             None => widget::column().into(),
         }
@@ -224,17 +281,63 @@ impl Application for AppModel {
             Message::UpdateConfig(config) => {
                 self.config = config;
             }
-            Message::Shells(_) => {
-                // Handle the shells page message.
+            Message::NewPackage => {
+                let package = Package {
+                    name: "Fish".into(),
+                    source: Source::Apt("fish".into()),
+                    config: vec![],
+                    page: Page::Shells,
+                    enabled: true,
+                };
+                let mut packages = self.config.packages.clone();
+                packages.push(package);
+                if let Some(config) = &mut self.config_handler {
+                    if let Err(err) = self.config.set_packages(config, packages.clone()) {
+                        log::error!("failed to set packages: {}", err);
+                    }
+                }
+                return Command::batch(vec![
+                    self.update(Message::UpdateConfig(self.config.clone())),
+                    self.update(Message::ReloadPackages),
+                ]);
             }
-            Message::Languages(_) => {
-                // Handle the languages page message.
+            Message::ReloadPackages => {
+                let page = self.nav.active_data::<Page>().cloned().unwrap_or_default();
+
+                let packages = self
+                    .config
+                    .packages
+                    .iter()
+                    .cloned()
+                    .filter(|p| p.page == page)
+                    .collect();
+
+                return match page {
+                    Page::Shells => {
+                        self.update(Message::Shells(page::Message::SetPackages(packages)))
+                    }
+                    Page::Languages => {
+                        self.update(Message::Languages(page::Message::SetPackages(packages)))
+                    }
+                    Page::Editors => {
+                        self.update(Message::Editors(page::Message::SetPackages(packages)))
+                    }
+                    Page::Libraries => {
+                        self.update(Message::Libraries(page::Message::SetPackages(packages)))
+                    }
+                };
             }
-            Message::Editors(_) => {
-                // Handle the editors page message.
+            Message::Shells(message) => {
+                return self.shells.update(message);
             }
-            Message::Libraries(_) => {
-                // Handle the libraries page message.
+            Message::Languages(message) => {
+                return self.shells.update(message);
+            }
+            Message::Editors(message) => {
+                return self.shells.update(message);
+            }
+            Message::Libraries(message) => {
+                return self.shells.update(message);
             }
         }
         Command::none()
@@ -245,7 +348,10 @@ impl Application for AppModel {
         // Activate the page in the model.
         self.nav.activate(id);
 
-        self.update_title()
+        Command::batch(vec![
+            self.update_title(),
+            self.update(Message::ReloadPackages),
+        ])
     }
 }
 
@@ -285,7 +391,9 @@ impl AppModel {
 }
 
 /// The page to display in the application.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Page {
+    #[default]
     Shells,
     Languages,
     Editors,
@@ -309,6 +417,7 @@ impl ContextPage {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MenuAction {
+    NewPackage,
     About,
 }
 
@@ -318,6 +427,7 @@ impl menu::action::MenuAction for MenuAction {
     fn message(&self) -> Self::Message {
         match self {
             MenuAction::About => Message::ToggleContextPage(ContextPage::About),
+            MenuAction::NewPackage => Message::NewPackage,
         }
     }
 }
