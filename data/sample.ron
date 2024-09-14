@@ -6,4 +6,18 @@
         page: Shells,
         enabled: true,
     ),
+    (
+        name: "Git",
+        source: Apt("git"),
+        config: [],
+        page: Tools,
+        enabled: true,
+    ),
+    (
+        name: "Zsh",
+        source: Apt("zsh"),
+        config: [],
+        page: Shells,
+        enabled: true,
+    ),
 ]

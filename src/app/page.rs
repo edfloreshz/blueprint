@@ -2,21 +2,38 @@
 
 use cosmic::{app::Command, widget, Apply, Element};
 
-use super::models::package::Package;
+use crate::config::Config;
+
+use super::{models::package::Package, Page};
 
 pub struct PageView {
+    page: Page,
+    config: Config,
     title: String,
     packages: Vec<Package>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    SetPackages(Vec<Package>),
+    ReloadPackages,
 }
 
 impl PageView {
-    pub fn new(title: String, packages: Vec<Package>) -> Self {
-        Self { title, packages }
+    pub fn new(page: Page, config: Config) -> Self {
+        let title = page.to_string();
+        let packages = config
+            .packages
+            .iter()
+            .cloned()
+            .filter(|p| p.page == page)
+            .collect();
+
+        Self {
+            page,
+            config,
+            title,
+            packages,
+        }
     }
 
     pub fn view<'a>(&self) -> Element<'a, Message> {
@@ -43,7 +60,17 @@ impl PageView {
 
     pub fn update(&mut self, message: Message) -> Command<crate::app::Message> {
         match message {
-            Message::SetPackages(packages) => self.packages = packages,
+            Message::ReloadPackages => {
+                let packages = self
+                    .config
+                    .packages
+                    .iter()
+                    .cloned()
+                    .filter(|p| p.page == self.page)
+                    .collect();
+
+                self.packages = packages
+            }
         }
         Command::none()
     }
