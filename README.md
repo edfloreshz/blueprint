@@ -5,6 +5,9 @@
   <a href="https://github.com/sponsors/edfloreshz">
     <img src="https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#white"/>
   </a>
+
+  ![window-light.png](res/screenshots/window-light.png#gh-light-mode-only)
+  ![window-dark.png](res/screenshots/window-dark.png#gh-dark-mode-only)
 </div>
 
 ## Description

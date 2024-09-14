@@ -188,13 +188,6 @@ impl Application for AppModel {
         })
     }
 
-    fn on_context_drawer(&mut self) -> Command<Self::Message> {
-        if !self.core.window.show_context {
-            self.package = None;
-        }
-        Command::none()
-    }
-
     /// Describes the interface based on the current state of the application model.
     ///
     /// Application events will be processed through the view. Any messages emitted by
@@ -263,16 +256,18 @@ impl Application for AppModel {
                 // For example purposes only.
             }
             Message::ToggleContextPage(context_page) => {
+                if context_page == ContextPage::NewPackage {
+                    self.package = None;
+                }
+
                 if self.context_page == context_page {
                     // Close the context drawer if the toggled context page is the same.
                     self.core.window.show_context = !self.core.window.show_context;
-                    self.package = None;
                 } else {
                     // Open the context drawer to display the requested context page.
                     self.context_page = context_page;
                     self.core.window.show_context = true;
                 }
-
                 // Set the title of the context drawer.
                 self.set_context_title(context_page.title());
             }
