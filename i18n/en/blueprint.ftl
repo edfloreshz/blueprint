@@ -11,12 +11,19 @@ libraries = Libraries
 libraries-desc = Configure your system libraries.
 tools = Tools
 tools-desc = Configure your system tools.
+packages = Packages
+no-packages = No packages found
 
 # Menu
 view = View
 about = About
 file = File
 new-package = New package
+edit-package = Edit package
 
 # Context
 create = Create
+package = Package
+name = Name
+enabled = Enabled
+description = Description

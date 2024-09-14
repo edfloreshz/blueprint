@@ -12,6 +12,7 @@ use models::package::{Package, Source};
 use page::PageView;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 pub mod models;
 pub mod page;
@@ -33,6 +34,7 @@ pub struct AppModel {
     config_handler: Option<cosmic_config::Config>,
     // Configuration data that persists between application runs.
     config: Config,
+    package: Option<Uuid>,
     shells: page::PageView,
     editors: page::PageView,
     languages: page::PageView,
@@ -48,7 +50,11 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
     NewPackage,
+    EditPackage(Uuid),
     Page(Page, page::Message),
+    PackageTitle(usize, String),
+    TogglePackage(usize, bool),
+    PackageDescription(usize, String),
 }
 
 /// Create a COSMIC application from the app model
@@ -126,6 +132,7 @@ impl Application for AppModel {
             // Optional configuration file for an application.
             config_handler: cosmic_config::Config::new(Self::APP_ID, Config::VERSION).ok(),
             config: config.clone(),
+            package: None,
             shells: PageView::new(Page::Shells, config.clone()),
             languages: PageView::new(Page::Languages, config.clone()),
             editors: PageView::new(Page::Editors, config.clone()),
@@ -177,8 +184,15 @@ impl Application for AppModel {
 
         Some(match self.context_page {
             ContextPage::About => self.about(),
-            ContextPage::NewPackage => self.new_package(),
+            ContextPage::NewPackage | ContextPage::EditPackage => self.package_view(),
         })
+    }
+
+    fn on_context_drawer(&mut self) -> Command<Self::Message> {
+        if !self.core.window.show_context {
+            self.package = None;
+        }
+        Command::none()
     }
 
     /// Describes the interface based on the current state of the application model.
@@ -186,21 +200,18 @@ impl Application for AppModel {
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<Self::Message> {
-        match self.nav.active_data::<Page>() {
-            Some(page) => match page {
-                Page::Shells => self.shells.view().map(|m| Message::Page(Page::Shells, m)),
-                Page::Languages => self
-                    .languages
-                    .view()
-                    .map(|m| Message::Page(Page::Languages, m)),
-                Page::Editors => self.editors.view().map(|m| Message::Page(Page::Editors, m)),
-                Page::Libraries => self
-                    .libraries
-                    .view()
-                    .map(|m| Message::Page(Page::Libraries, m)),
-                Page::Tools => self.tools.view().map(|m| Message::Page(Page::Tools, m)),
-            },
-            None => widget::column().into(),
+        match self.nav.active_data::<Page>().cloned().unwrap_or_default() {
+            Page::Shells => self.shells.view().map(|m| Message::Page(Page::Shells, m)),
+            Page::Languages => self
+                .languages
+                .view()
+                .map(|m| Message::Page(Page::Languages, m)),
+            Page::Editors => self.editors.view().map(|m| Message::Page(Page::Editors, m)),
+            Page::Libraries => self
+                .libraries
+                .view()
+                .map(|m| Message::Page(Page::Libraries, m)),
+            Page::Tools => self.tools.view().map(|m| Message::Page(Page::Tools, m)),
         }
     }
 
@@ -241,6 +252,9 @@ impl Application for AppModel {
     /// Commands may be returned for asynchronous execution of code in the background
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+        let page = self.nav.active_data::<Page>().cloned().unwrap_or_default();
+        let mut commands = vec![];
+
         match message {
             Message::OpenRepositoryUrl => {
                 _ = open::that_detached(REPOSITORY);
@@ -252,6 +266,7 @@ impl Application for AppModel {
                 if self.context_page == context_page {
                     // Close the context drawer if the toggled context page is the same.
                     self.core.window.show_context = !self.core.window.show_context;
+                    self.package = None;
                 } else {
                     // Open the context drawer to display the requested context page.
                     self.context_page = context_page;
@@ -264,14 +279,14 @@ impl Application for AppModel {
             Message::UpdateConfig(config) => {
                 self.config = config;
             }
+            Message::EditPackage(id) => {
+                self.package = Some(id);
+                return Command::batch(vec![
+                    self.update(Message::ToggleContextPage(ContextPage::EditPackage))
+                ]);
+            }
             Message::NewPackage => {
-                let package = Package {
-                    name: "Fish".into(),
-                    source: Source::Apt("fish".into()),
-                    config: vec![],
-                    page: Page::Shells,
-                    enabled: true,
-                };
+                let package = Package::new("Fish", Source::Apt("fish".into()), Page::Shells);
                 let mut packages = self.config.packages.clone();
                 packages.push(package);
                 if let Some(config) = &mut self.config_handler {
@@ -280,24 +295,60 @@ impl Application for AppModel {
                     }
                 }
 
-                let page = self.nav.active_data::<Page>().cloned().unwrap_or_default();
-
                 return Command::batch(vec![
                     self.update(Message::UpdateConfig(self.config.clone())),
                     self.update(Message::Page(page, page::Message::ReloadPackages)),
                 ]);
             }
             Message::Page(page, message) => {
-                return match page {
+                let page_commands = match page {
                     Page::Shells => self.shells.update(message),
                     Page::Languages => self.languages.update(message),
                     Page::Editors => self.editors.update(message),
                     Page::Libraries => self.libraries.update(message),
                     Page::Tools => self.tools.update(message),
                 };
+                for command in page_commands {
+                    match command {
+                        page::Command::EditPackage(id) => {
+                            commands.push(self.update(Message::EditPackage(id)))
+                        }
+                    }
+                }
+            }
+            Message::PackageTitle(index, title) => {
+                let mut packages = self.config.packages.clone();
+                packages[index].name = title;
+                if let Some(config) = &mut self.config_handler {
+                    if let Err(err) = self.config.set_packages(config, packages.clone()) {
+                        log::error!("failed to set packages: {}", err);
+                    }
+                    commands.push(self.update(Message::Page(page, page::Message::ReloadPackages)));
+                }
+            }
+            Message::PackageDescription(index, description) => {
+                let mut packages = self.config.packages.clone();
+                packages[index].description = description;
+                if let Some(config) = &mut self.config_handler {
+                    if let Err(err) = self.config.set_packages(config, packages.clone()) {
+                        log::error!("failed to set packages: {}", err);
+                    }
+                    commands.push(self.update(Message::Page(page, page::Message::ReloadPackages)));
+                }
+            }
+            Message::TogglePackage(index, toggled) => {
+                let mut packages = self.config.packages.clone();
+                packages[index].enabled = toggled;
+                if let Some(config) = &mut self.config_handler {
+                    if let Err(err) = self.config.set_packages(config, packages.clone()) {
+                        log::error!("failed to set packages: {}", err);
+                    }
+                    commands.push(self.update(Message::Page(page, page::Message::ReloadPackages)));
+                }
             }
         }
-        Command::none()
+
+        Command::batch(commands)
     }
 
     /// Called when a nav item is selected.
@@ -336,17 +387,52 @@ impl AppModel {
             .into()
     }
 
-    pub fn new_package(&self) -> Element<Message> {
+    pub fn package_view(&self) -> Element<Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
 
-        let create = widget::button(widget::text(fl!("create")))
-            .on_press(Message::NewPackage)
-            .padding(0);
+        let Some(id) = self.package else {
+            let create = widget::button(widget::text(fl!("create")))
+                .on_press(Message::NewPackage)
+                .padding(0);
 
-        widget::column()
-            .push(create)
-            .align_items(Alignment::Center)
-            .spacing(space_xxs)
+            return widget::column()
+                .push(create)
+                .align_items(Alignment::Center)
+                .spacing(space_xxs)
+                .into();
+        };
+
+        let Some(index) = self.config.packages.iter().position(|p| p.id == id) else {
+            return widget::text("No package selected").into();
+        };
+
+        let package = self.config.packages[index].clone();
+
+        let title =
+            widget::settings::item_row(vec![widget::text_input(fl!("name"), package.name.clone())
+                .label("Name")
+                .on_input(move |text| Message::PackageTitle(index, text))
+                .into()]);
+
+        let description = widget::settings::item_row(vec![widget::text_input(
+            fl!("description"),
+            package.description.clone(),
+        )
+        .label("Description")
+        .on_input(move |text| Message::PackageDescription(index, text))
+        .into()]);
+
+        let enabled = widget::settings::item(
+            fl!("enabled"),
+            widget::checkbox(fl!("enabled"), package.enabled, move |toggled| {
+                Message::TogglePackage(index, toggled)
+            }),
+        );
+
+        widget::settings::view_section(fl!("package"))
+            .add(title)
+            .add(description)
+            .add(enabled)
             .into()
     }
 
@@ -392,6 +478,7 @@ pub enum ContextPage {
     #[default]
     About,
     NewPackage,
+    EditPackage,
 }
 
 impl ContextPage {
@@ -399,6 +486,7 @@ impl ContextPage {
         match self {
             Self::About => fl!("about"),
             Self::NewPackage => fl!("new-package"),
+            Self::EditPackage => fl!("edit-package"),
         }
     }
 }
